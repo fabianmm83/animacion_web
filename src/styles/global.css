@@ -26,3 +26,19 @@ button {
   -webkit-user-select: none;
   user-select: none;
 }
+
+
+/* Ocultar hints móviles en desktop por defecto */
+.hud-hints-mobile {
+  display: none;
+}
+
+/* Ocultar hints desktop en móvil */
+@media (max-width: 768px) and (pointer: coarse) {
+  .hud-hints {
+    display: none;
+  }
+  .hud-hints-mobile {
+    display: block;
+  }
+}
