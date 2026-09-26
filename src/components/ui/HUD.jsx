@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useGameStore } from '../../core/engine/store'
 
 export default function HUD({ islaActual, onChangeIsla }) {
@@ -7,10 +8,19 @@ export default function HUD({ islaActual, onChangeIsla }) {
   const setCamRotation = useGameStore((s) => s.setCamRotation)
   const setCamPitch = useGameStore((s) => s.setCamPitch)
 
+  // Detectar si es pantalla chica (móvil)
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   const islas = [
-    { id: 'tocho', label: '🏈 Tocho' },
-    { id: 'codigo', label: '💻 Código' },
-    { id: 'montana', label: '🏔️ Montaña' },
+    { id: 'tocho', label: isMobile ? '🏈' : '🏈 Tocho' },
+    { id: 'codigo', label: isMobile ? '💻' : '💻 Código' },
+    { id: 'montana', label: isMobile ? '🏔️' : '🏔️ Montaña' },
   ]
 
   const resetCam = () => {
@@ -25,105 +35,115 @@ export default function HUD({ islaActual, onChangeIsla }) {
     setCamPitch(Math.PI / 4)
   }
 
+  const btnBase = {
+    color: '#fff',
+    border: '2px solid #fff',
+    cursor: 'pointer',
+    fontFamily: 'monospace',
+    borderRadius: 6,
+    touchAction: 'manipulation',
+    userSelect: 'none',
+    WebkitUserSelect: 'none',
+    padding: isMobile ? '6px 8px' : '8px 12px',
+    fontSize: isMobile ? 12 : 12,
+    flex: '0 0 auto',
+  }
+
   return (
     <>
-      {/* ─── Selector de islas (arriba izquierda) ─── */}
+      {/* ─── FILA SUPERIOR: selector de islas (izq) + estado de cámara (der) ─── */}
       <div style={{
         position: 'fixed',
-        top: 12, left: 12,
-        display: 'flex', gap: 8, flexWrap: 'wrap',
+        top: 8, left: 8, right: 8,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        gap: 8,
         zIndex: 10,
-        maxWidth: 'calc(100vw - 24px)',
+        pointerEvents: 'none', // los hijos sí reciben clicks
+        maxWidth: 'calc(100vw - 16px)',
+        flexWrap: 'nowrap',
       }}>
-        {islas.map((i) => (
-          <button
-            key={i.id}
-            onClick={() => onChangeIsla(i.id)}
-            style={{
-              padding: '8px 12px',
-              background: islaActual === i.id ? '#c0392b' : 'rgba(20,20,30,0.75)',
-              color: '#fff',
-              border: '2px solid #fff',
-              cursor: 'pointer',
-              fontFamily: 'monospace',
-              fontSize: 12,
-              borderRadius: 6,
-              touchAction: 'manipulation',
-              userSelect: 'none',
-            }}
-          >
-            {i.label}
-          </button>
-        ))}
-      </div>
-
-      {/* ─── Estado de cámara + botones (arriba derecha) ─── */}
-      <div style={{
-        position: 'fixed',
-        top: 12, right: 12,
-        display: 'flex', gap: 8, alignItems: 'center',
-        zIndex: 10,
-        flexWrap: 'wrap',
-        justifyContent: 'flex-end',
-        maxWidth: 'calc(100vw - 24px)',
-      }}>
-        <span style={{
-          color: camFollow ? '#22c55e' : '#f59e0b',
-          fontFamily: 'monospace',
-          fontSize: 11,
-          padding: '6px 10px',
-          background: 'rgba(20,20,30,0.75)',
-          borderRadius: 6,
-          border: '1px solid rgba(255,255,255,0.2)',
-          userSelect: 'none',
+        {/* Selector de islas */}
+        <div style={{
+          display: 'flex',
+          gap: 6,
+          flexWrap: 'wrap',
+          pointerEvents: 'auto',
         }}>
-          {camFollow ? '● FOLLOW' : '● FREE'}
-        </span>
+          {islas.map((i) => (
+            <button
+              key={i.id}
+              onClick={() => onChangeIsla(i.id)}
+              style={{
+                ...btnBase,
+                background: islaActual === i.id ? '#c0392b' : 'rgba(20,20,30,0.85)',
+              }}
+              title={i.id}
+            >
+              {i.label}
+            </button>
+          ))}
+        </div>
 
-        {!camFollow && (
-          <button
-            onClick={resetCam}
-            style={{
-              padding: '6px 12px',
-              background: '#22c55e',
-              color: '#fff',
-              border: '2px solid #fff',
-              cursor: 'pointer',
+        {/* Estado de cámara + botones */}
+        <div style={{
+          display: 'flex',
+          gap: 6,
+          flexWrap: 'wrap',
+          justifyContent: 'flex-end',
+          pointerEvents: 'auto',
+        }}>
+          {!isMobile && (
+            <span style={{
+              color: camFollow ? '#22c55e' : '#f59e0b',
               fontFamily: 'monospace',
               fontSize: 11,
+              padding: '6px 10px',
+              background: 'rgba(20,20,30,0.85)',
               borderRadius: 6,
-              touchAction: 'manipulation',
+              border: '1px solid rgba(255,255,255,0.2)',
               userSelect: 'none',
-            }}
-          >
-            ⊙ Centrar
-          </button>
-        )}
+              display: 'flex',
+              alignItems: 'center',
+            }}>
+              {camFollow ? '● FOLLOW' : '● FREE'}
+            </span>
+          )}
 
-        <button
-          onClick={resetAll}
-          style={{
-            padding: '6px 12px',
-            background: 'rgba(20,20,30,0.75)',
-            color: '#fff',
-            border: '2px solid #fff',
-            cursor: 'pointer',
-            fontFamily: 'monospace',
-            fontSize: 11,
-            borderRadius: 6,
-            touchAction: 'manipulation',
-            userSelect: 'none',
-          }}
-          title="Reset cámara completa (rotación + pitch + pan)"
-        >
-          ⟳ Reset
-        </button>
+          {!camFollow && (
+            <button
+              onClick={resetCam}
+              style={{
+                ...btnBase,
+                background: '#22c55e',
+                padding: isMobile ? '6px 8px' : '6px 12px',
+                fontSize: 11,
+              }}
+              title="Centrar en el avatar"
+            >
+              {isMobile ? '⊙' : '⊙ Centrar'}
+            </button>
+          )}
+
+          <button
+            onClick={resetAll}
+            style={{
+              ...btnBase,
+              background: 'rgba(20,20,30,0.85)',
+              padding: isMobile ? '6px 8px' : '6px 12px',
+              fontSize: 11,
+            }}
+            title="Reset cámara"
+          >
+            {isMobile ? '⟳' : '⟳ Reset'}
+          </button>
+        </div>
       </div>
 
-      {/* ─── Hints de controles (abajo derecha, oculto en móvil) ─── */}
-      <div
-        className="hud-hints"
-        style={{
+      {/* ─── Hints desktop (solo en desktop, abajo derecha) ─── */}
+      {!isMobile && (
+        <div style={{
           position: 'fixed',
           bottom: 12, right: 12,
           color: '#9aa',
@@ -136,37 +156,36 @@ export default function HUD({ islaActual, onChangeIsla }) {
           lineHeight: 1.5,
           pointerEvents: 'none',
           userSelect: 'none',
-        }}
-      >
-        <div>WASD / ↑←↓→ mover</div>
-        <div>Rueda: zoom</div>
-        <div>Clic der: orbitar</div>
-        <div>Clic medio: pan</div>
-        <div>Doble clic der: follow</div>
-      </div>
+        }}>
+          <div>WASD / ↑←↓→ mover</div>
+          <div>Rueda: zoom</div>
+          <div>Clic der: orbitar</div>
+          <div>Clic medio: pan</div>
+          <div>Doble clic der: follow</div>
+        </div>
+      )}
 
-      {/* ─── Hints móvil (abajo izquierda, sobre el D-pad) ─── */}
-      <div
-        className="hud-hints-mobile"
-        style={{
+      {/* ─── Hints móvil (solo en móvil, abajo derecha, arriba del D-pad) ─── */}
+      {isMobile && (
+        <div style={{
           position: 'fixed',
-          bottom: 12, left: 12,
+          bottom: 12, right: 12,
           color: '#9aa',
           fontFamily: 'monospace',
-          fontSize: 10,
+          fontSize: 9,
+          textAlign: 'right',
           zIndex: 10,
-          opacity: 0.75,
-          lineHeight: 1.4,
+          opacity: 0.7,
+          lineHeight: 1.35,
           pointerEvents: 'none',
           userSelect: 'none',
-          maxWidth: 140,
-        }}
-      >
-        <div>1 dedo izq: mover</div>
-        <div>1 dedo der: rotar</div>
-        <div>2 dedos: zoom/pan</div>
-        <div>Doble tap: centrar</div>
-      </div>
+          maxWidth: 130,
+        }}>
+          <div>1 dedo der: rotar</div>
+          <div>2 dedos: zoom/pan</div>
+          <div>Doble tap: centrar</div>
+        </div>
+      )}
     </>
   )
 }
