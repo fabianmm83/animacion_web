@@ -6,10 +6,9 @@ import { COLORS } from '../../core/engine/constants'
 
 // ─────────────────────────────────────────────────────────────
 // GRADIENTE CEL-SHADING (toon)
-// Se construye UNA sola vez al cargar el módulo (no por render,
-// no por componente). Da el look de bandas planas de color —
-// la firma visual de animación tipo Rick & Morty — en vez del
-// degradado suave de un material PBR estándar.
+// Se construye UNA sola vez al cargar el módulo. Da el look de
+// bandas planas de color — la firma visual de animación tipo
+// Rick & Morty — en vez del degradado suave de un material PBR.
 // ─────────────────────────────────────────────────────────────
 const CEL_STEPS = 4
 const celGradient = (() => {
@@ -56,15 +55,60 @@ const PALETTE = {
   avion: '#f8fafc',
   letreroPoste: '#8a5a34',
   letreroPlaca: '#e8823c',
+  letreroCuerda: '#3f3a33',
   piedraAltar: '#6b6459',
   piedraAltarMedio: '#5a5448',
   piedraAltarAlto: '#4a453b',
+  ofrenda: '#7dd3fc',
+  roca: '#6b6459',
 }
 
 // ─────────────────────────────────────────────────────────────
-// MONTAÑA — silueta procedural con desplazamiento tipo low-poly.
-// Se conserva el algoritmo original (ha demostrado dar siluetas
-// reconocibles para cada volcán); solo cambia el material a toon.
+// ROCAS DE BASE — disimulan el encuentro entre el cono y el piso
+// y le dan a cada montaña un pie de monte con textura real en vez
+// de un borde geométrico limpio.
+// ─────────────────────────────────────────────────────────────
+function RocaBase({ radio }) {
+  const rocas = useMemo(() => {
+    const n = 9
+    const arr = []
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.35
+      const r = radio * (0.82 + Math.random() * 0.38)
+      arr.push([
+        Math.cos(a) * r,
+        Math.random() * 0.1,
+        Math.sin(a) * r,
+        0.14 + Math.random() * 0.17,
+        Math.random() * Math.PI,
+        Math.random() * Math.PI,
+      ])
+    }
+    return arr
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [radio])
+
+  return (
+    <group>
+      {rocas.map(([x, y, z, s, rx, ry], i) => (
+        <mesh key={i} position={[x, y, z]} rotation={[rx, ry, 0]} castShadow receiveShadow>
+          <dodecahedronGeometry args={[s, 0]} />
+          <meshToonMaterial color={PALETTE.roca} gradientMap={celGradient} flatShading />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// MONTAÑA — silueta procedural low-poly.
+// FIX clave: la geometría se traslada tras deformarse para que
+// su propio origen sea la BASE (y=0) y la cima quede en y=altura.
+// Antes la geometría quedaba centrada en su origen (base en
+// -altura/2), por lo que con un offset de grupo fijo de 0.25 la
+// mitad de la montaña se hundía bajo el piso y cualquier elemento
+// colocado "cerca de la cima" terminaba flotando muy por encima
+// de la cima real.
 // ─────────────────────────────────────────────────────────────
 function Montaña({
   position,
@@ -102,6 +146,7 @@ function Montaña({
       pos.setXYZ(i, snapX, snapY, snapZ)
     }
     g.computeVertexNormals()
+    g.translate(0, altura / 2, 0) // la base pasa a y=0; la cima queda en y=altura
     return g
   }, [altura, radio, segments, perfil])
 
@@ -112,30 +157,69 @@ function Montaña({
       </mesh>
 
       {nieve && (
-        <mesh position={[0, altura * nieveAltura, 0]} castShadow>
+        <mesh position={[0, altura * nieveAltura + altura / 2, 0]} castShadow>
           <coneGeometry args={[radio * 0.32, altura * 0.42, segments]} />
           <meshToonMaterial color={COLORS.nieve} gradientMap={celGradient} flatShading />
         </mesh>
       )}
+
+      <RocaBase radio={radio} />
     </group>
   )
 }
 
 // ─── Adoratorio prehispánico — el sitio ceremonial real en la cima de Tláloc ───
 function Altar({ position = [0, 0, 0] }) {
+  const braseroRef = useRef()
+  const topRef = useRef()
+
+  const esquinas = useMemo(() => ([
+    [-0.3, -0.3], [0.3, -0.3], [-0.3, 0.3], [0.3, 0.3],
+  ]), [])
+
+  useFrame((state) => {
+    const t = state.clock.elapsedTime
+    if (braseroRef.current) {
+      braseroRef.current.material.opacity = 0.55 + Math.sin(t * 3) * 0.25
+      braseroRef.current.scale.setScalar(1 + Math.sin(t * 3) * 0.12)
+    }
+    if (topRef.current) {
+      topRef.current.rotation.y = t * 0.15
+    }
+  })
+
   return (
     <group position={position} rotation={[0, 0.4, 0]}>
       <mesh castShadow receiveShadow position={[0, 0.09, 0]}>
-        <boxGeometry args={[0.6, 0.18, 0.6]} />
+        <boxGeometry args={[0.68, 0.18, 0.68]} />
         <meshToonMaterial color={PALETTE.piedraAltar} gradientMap={celGradient} flatShading />
       </mesh>
+
+      {esquinas.map(([x, z], i) => (
+        <mesh key={i} position={[x, 0.2, z]} castShadow>
+          <dodecahedronGeometry args={[0.09, 0]} />
+          <meshToonMaterial color={PALETTE.piedraAltarMedio} gradientMap={celGradient} flatShading />
+        </mesh>
+      ))}
+
       <mesh castShadow position={[0, 0.24, 0]}>
-        <boxGeometry args={[0.42, 0.14, 0.42]} />
+        <boxGeometry args={[0.46, 0.14, 0.46]} />
         <meshToonMaterial color={PALETTE.piedraAltarMedio} gradientMap={celGradient} flatShading />
       </mesh>
-      <mesh castShadow position={[0, 0.36, 0]}>
-        <boxGeometry args={[0.26, 0.1, 0.26]} />
+
+      <mesh ref={topRef} castShadow position={[0, 0.36, 0]}>
+        <boxGeometry args={[0.28, 0.1, 0.28]} />
         <meshToonMaterial color={PALETTE.piedraAltarAlto} gradientMap={celGradient} flatShading />
+      </mesh>
+
+      {/* Brasero de ofrenda — el azul remite al agua, no al fuego: Tláloc es dios de la lluvia */}
+      <mesh position={[0, 0.44, 0]} castShadow>
+        <cylinderGeometry args={[0.09, 0.11, 0.06, 8]} />
+        <meshToonMaterial color="#3a3630" gradientMap={celGradient} />
+      </mesh>
+      <mesh ref={braseroRef} position={[0, 0.49, 0]}>
+        <sphereGeometry args={[0.06, 6, 6]} />
+        <meshBasicMaterial color={PALETTE.ofrenda} transparent opacity={0.75} />
       </mesh>
     </group>
   )
@@ -154,7 +238,8 @@ function MonteTlaloc({ position = [0, 0, 0] }) {
         nieveAltura={0.3}
         segments={8}
       />
-      <Altar position={[0, 4.5, 0]} />
+      {/* cima real ≈ 0.25 + 4.8 = 5.05 */}
+      <Altar position={[0, 5.0, 0]} />
     </group>
   )
 }
@@ -197,6 +282,7 @@ function Popocatepetl({ position = [0, 0, 0] }) {
         nieveAltura={0.32}
         segments={10}
       />
+      {/* cima real ≈ 0.25 + 8 = 8.25 */}
 
       {/* Nieve en lenguas */}
       {[
@@ -210,7 +296,7 @@ function Popocatepetl({ position = [0, 0, 0] }) {
       ))}
 
       {/* Cráter incandescente — sigue activo, sigue llamando */}
-      <mesh ref={craterRef} position={[0, 8.15, 0]} castShadow>
+      <mesh ref={craterRef} position={[0, 8.2, 0]} castShadow>
         <sphereGeometry args={[0.35, 8, 6]} />
         <meshToonMaterial
           color="#ff6b35"
@@ -220,7 +306,7 @@ function Popocatepetl({ position = [0, 0, 0] }) {
         />
       </mesh>
 
-      <mesh position={[0, 8.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[0, 8.1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.35, 0.55, 12]} />
         <meshToonMaterial color="#3d2f28" gradientMap={celGradient} side={THREE.DoubleSide} />
       </mesh>
@@ -232,7 +318,7 @@ function Popocatepetl({ position = [0, 0, 0] }) {
       </mesh>
 
       {/* Velo de neblina — aún no conquistada, envuelta en misterio */}
-      <mesh ref={hazeRef} position={[0, 4.2, 0]}>
+      <mesh ref={hazeRef} position={[0, 4.25, 0]}>
         <sphereGeometry args={[4.6, 12, 10]} />
         <meshBasicMaterial color="#c7d2dc" transparent opacity={0.22} depthWrite={false} />
       </mesh>
@@ -244,8 +330,8 @@ function Popocatepetl({ position = [0, 0, 0] }) {
           <meshBasicMaterial color={PALETTE.metaPendiente} transparent opacity={0.85} />
         </mesh>
       </group>
-      <mesh position={[0, 8.75, 0]}>
-        <cylinderGeometry args={[0.02, 0.02, 1.2, 6]} />
+      <mesh position={[0, 8.8, 0]}>
+        <cylinderGeometry args={[0.02, 0.02, 1.1, 6]} />
         <meshBasicMaterial color={PALETTE.metaPendiente} transparent opacity={0.3} />
       </mesh>
     </group>
@@ -294,6 +380,7 @@ function Iztaccihuatl({ position = [0, 0, 0] }) {
         segments={10}
         perfil={perfil}
       />
+      {/* cima real ≈ 0.25 + 6.8 = 7.05 */}
 
       {/* Nieve en franjas */}
       {[
@@ -316,7 +403,7 @@ function Iztaccihuatl({ position = [0, 0, 0] }) {
         <meshToonMaterial color={COLORS.nieve} gradientMap={celGradient} flatShading />
       </mesh>
 
-      <BanderaCumbre position={[0, 7.0, 0.15]} />
+      <BanderaCumbre position={[0, 7.05, 0.15]} />
     </group>
   )
 }
@@ -382,7 +469,7 @@ function MountainLabel({ position, text, subtext = '', color = '#ffffff' }) {
   )
 }
 
-// ─── Árbol (oyamel / pino) — ahora con balanceo suave ───────────
+// ─── Árbol (oyamel / pino) — con balanceo suave ─────────────────
 function Arbol({ position = [0, 0, 0], escala = 1 }) {
   const ref = useRef()
   const fase = useMemo(() => Math.random() * Math.PI * 2, [])
@@ -415,21 +502,38 @@ function Arbol({ position = [0, 0, 0], escala = 1 }) {
 // ─────────────────────────────────────────────────────────────
 function Tienda({ position = [0, 0, 0], rotationY = 0 }) {
   const flapRef = useRef()
+  const bodyRef = useRef()
+
   useFrame((state) => {
-    if (!flapRef.current) return
-    flapRef.current.rotation.x = -0.3 + Math.sin(state.clock.elapsedTime * 1.4) * 0.06
+    const t = state.clock.elapsedTime
+    if (flapRef.current) {
+      flapRef.current.rotation.x = -0.3 + Math.sin(t * 1.4) * 0.06
+    }
+    if (bodyRef.current) {
+      bodyRef.current.scale.y = 1 + Math.sin(t * 1.1) * 0.012
+    }
   })
+
   return (
     <group position={position} rotation={[0, rotationY, 0]}>
-      <mesh castShadow receiveShadow position={[0, 0.42, 0]}>
-        <coneGeometry args={[0.62, 0.85, 4]} />
+      {/* cuerpo alargado — ya no es una pirámide simétrica, es una tienda de dos aguas */}
+      <mesh ref={bodyRef} castShadow receiveShadow position={[0, 0.42, 0]} scale={[1, 1, 1.55]}>
+        <coneGeometry args={[0.55, 0.85, 4]} />
         <meshToonMaterial color={PALETTE.tienda} gradientMap={celGradient} />
       </mesh>
-      <mesh ref={flapRef} position={[0, 0.22, 0.42]} rotation={[-0.3, 0, 0]}>
+
+      {/* viga de cumbrera */}
+      <mesh position={[0, 0.83, 0]} castShadow>
+        <boxGeometry args={[0.06, 0.06, 0.95]} />
+        <meshToonMaterial color={PALETTE.tiendaSombra} gradientMap={celGradient} />
+      </mesh>
+
+      <mesh ref={flapRef} position={[0, 0.22, 0.55]} rotation={[-0.3, 0, 0]}>
         <planeGeometry args={[0.32, 0.4]} />
         <meshToonMaterial color={PALETTE.tiendaSombra} gradientMap={celGradient} side={THREE.DoubleSide} />
       </mesh>
-      {[[-0.42, 0, 0.3], [0.42, 0, 0.3]].map(([x, y, z], i) => (
+
+      {[[-0.4, 0, 0.68], [0.4, 0, 0.68], [-0.4, 0, -0.68], [0.4, 0, -0.68]].map(([x, y, z], i) => (
         <mesh key={i} position={[x, y, z]} rotation={[0, 0, Math.PI / 5]}>
           <cylinderGeometry args={[0.012, 0.012, 0.22, 4]} />
           <meshToonMaterial color="#6b7280" gradientMap={celGradient} />
@@ -493,8 +597,13 @@ function Fogata({ position = [0, 0, 0] }) {
 }
 
 function Mochila({ position = [0, 0, 0], rotationY = 0 }) {
+  const ref = useRef()
+  useFrame((state) => {
+    if (!ref.current) return
+    ref.current.rotation.z = Math.sin(state.clock.elapsedTime * 0.9) * 0.02
+  })
   return (
-    <group position={position} rotation={[0, rotationY, 0]}>
+    <group ref={ref} position={position} rotation={[0, rotationY, 0]}>
       <mesh castShadow position={[0, 0.22, 0]}>
         <boxGeometry args={[0.34, 0.44, 0.22]} />
         <meshToonMaterial color={PALETTE.mochila} gradientMap={celGradient} />
@@ -616,6 +725,10 @@ function Globo({ position = [0, 0, 0] }) {
           <sphereGeometry args={[0.55, 16, 12]} />
           <meshToonMaterial color={PALETTE.globoMar} gradientMap={celGradient} />
         </mesh>
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.57, 0.015, 6, 24]} />
+          <meshToonMaterial color="#e2e8f0" gradientMap={celGradient} />
+        </mesh>
         {continentes.map(([x, y, z, r], i) => (
           <mesh key={i} position={[x, y, z]}>
             <sphereGeometry args={[r, 6, 6]} />
@@ -623,16 +736,25 @@ function Globo({ position = [0, 0, 0] }) {
           </mesh>
         ))}
       </group>
-      <mesh position={[0, -0.68, 0]} castShadow>
-        <cylinderGeometry args={[0.06, 0.16, 0.3, 8]} />
-        <meshToonMaterial color={PALETTE.maleta} gradientMap={celGradient} />
-      </mesh>
+
+      {/* trípode de tres patas, repartidas en 120° */}
+      {[0, 1, 2].map((i) => (
+        <group key={i} rotation={[0, (i / 3) * Math.PI * 2, 0]}>
+          <mesh position={[0.22, -0.62, 0]} rotation={[0, 0, 0.35]} castShadow>
+            <cylinderGeometry args={[0.018, 0.018, 0.5, 5]} />
+            <meshToonMaterial color={PALETTE.maleta} gradientMap={celGradient} />
+          </mesh>
+        </group>
+      ))}
     </group>
   )
 }
 
 function Brujula({ position = [0, 0, 0] }) {
   const needleRef = useRef()
+
+  const marcas = useMemo(() => Array.from({ length: 12 }).map((_, i) => (i / 12) * Math.PI * 2), [])
+
   useFrame((state) => {
     if (!needleRef.current) return
     const t = state.clock.elapsedTime
@@ -640,12 +762,21 @@ function Brujula({ position = [0, 0, 0] }) {
     // igual que las ganas de seguir explorando.
     needleRef.current.rotation.y = Math.sin(t * 0.7) * 0.5 + Math.sin(t * 2.3) * 0.08
   })
+
   return (
     <group position={position}>
       <mesh castShadow position={[0, 0.06, 0]}>
         <cylinderGeometry args={[0.26, 0.28, 0.1, 12]} />
         <meshToonMaterial color={PALETTE.brujulaCuerpo} gradientMap={celGradient} />
       </mesh>
+
+      {marcas.map((a, i) => (
+        <mesh key={i} position={[Math.cos(a) * 0.24, 0.11, Math.sin(a) * 0.24]} rotation={[0, -a, 0]}>
+          <boxGeometry args={[0.014, 0.018, 0.04]} />
+          <meshToonMaterial color="#475569" gradientMap={celGradient} />
+        </mesh>
+      ))}
+
       <group ref={needleRef} position={[0, 0.14, 0]}>
         <mesh position={[0, 0, 0.09]} rotation={[Math.PI / 2, 0, 0]}>
           <coneGeometry args={[0.045, 0.2, 4]} />
@@ -672,10 +803,13 @@ function Maleta({ position = [0, 0, 0], rotationY = 0 }) {
         <boxGeometry args={[0.5, 0.36, 0.16]} />
         <meshToonMaterial color={PALETTE.maleta} gradientMap={celGradient} />
       </mesh>
-      <mesh castShadow position={[0, 0.44, 0]}>
-        <boxGeometry args={[0.16, 0.08, 0.05]} />
+
+      {/* asa curva en vez de una caja plana */}
+      <mesh castShadow position={[0, 0.44, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.08, 0.014, 6, 10, Math.PI]} />
         <meshToonMaterial color={PALETTE.maletaDetalle} gradientMap={celGradient} />
       </mesh>
+
       {stickers.map(([x, y, c], i) => (
         <mesh key={i} position={[x, y, 0.085]}>
           <circleGeometry args={[0.045, 8]} />
@@ -743,6 +877,10 @@ function LetreroTexcoco({ position = [0, 0, 0] }) {
           <mesh position={[0.28, 0, 0]} castShadow>
             <boxGeometry args={[0.5, 0.14, 0.03]} />
             <meshToonMaterial color={PALETTE.letreroPlaca} gradientMap={celGradient} />
+          </mesh>
+          <mesh position={[0.02, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <torusGeometry args={[0.04, 0.008, 6, 8]} />
+            <meshToonMaterial color={PALETTE.letreroCuerda} gradientMap={celGradient} />
           </mesh>
           <Billboard position={[0.28, 0, 0.05]}>
             <Text fontSize={0.09} color={s.color} anchorX="center" anchorY="middle">
@@ -852,15 +990,15 @@ export default function IslaMontana() {
 // ─────────────────────────────────────────────────────────────
 // NOTAS PARA collisions.js (isla "montana")
 //
-// No se movió NINGUNA posición/radio de las montañas ni de los
-// árboles: siguen siendo exactamente las mismas que ya tienes
-// registradas hoy en obstaclesByIsland.montana, así que ese
-// bloque NO necesita cambios.
+// Sigue sin necesitar cambios: no se movió ninguna posición ni
+// radio de montañas o árboles respecto a lo que ya tienes
+// registrado en obstaclesByIsland.montana. El fix de esta versión
+// fue puramente vertical (eje Y) — las colisiones son en el plano
+// XZ, así que no las toca.
 //
-// Lo nuevo (campamento, altar, rincón trotamundos, letrero) son
-// props decorativos de bajo perfil que dejé caminables a propósito
-// — no rompen el paso del avatar. Si prefieres que bloqueen el
-// paso, estas son las posiciones/radios sugeridos (opcional):
+// Sugerencias opcionales, sin cambios respecto a la entrega
+// anterior (el campamento y el rincón trotamundos siguen
+// caminables a propósito):
 //
 // ALTAR (Tláloc, cima)        circle  x:-6.5  z:-2    r:0.4
 // CAMPAMENTO (Tláloc, base)   circle  x:-9.1  z:-0.4  r:0.9
